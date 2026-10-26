@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trafo Sıcaklık İzleme</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #1b1f24; --muted: #5d6673; --line: #dfe3e8;
+    --actual: #d1453b; --clean: #8a929c; --pred: #2f6fde; --band: rgba(47,111,222,.14);
+    --cusum: #7a4fd1; --alarm: #111;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12151a; --card: #1b2027; --text: #e8ebef; --muted: #9aa3ae; --line: #2c333c;
+      --actual: #ff6b5e; --clean: #7d8590; --pred: #6ea0ff; --band: rgba(110,160,255,.16);
+      --cusum: #b39bff; --alarm: #fff;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12151a; --card: #1b2027; --text: #e8ebef; --muted: #9aa3ae; --line: #2c333c;
+    --actual: #ff6b5e; --clean: #7d8590; --pred: #6ea0ff; --band: rgba(110,160,255,.16);
+    --cusum: #b39bff; --alarm: #fff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px 20px; align-items: end; }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  input[type=range], select { width: 100%; }
+  select { padding: 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--text); }
+  .status { display: flex; gap: 12px; flex-wrap: wrap; }
+  .pill { padding: 6px 12px; border-radius: 999px; font-weight: 600; font-size: 14px; border: 1px solid var(--line); }
+  .pill.ok { background: rgba(46,160,67,.15); color: #2ea043; border-color: transparent; }
+  .pill.bad { background: rgba(209,69,59,.15); color: var(--actual); border-color: transparent; }
+  .chart-wrap { position: relative; height: 320px; }
+  .chart-wrap.small { height: 180px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .stat b { display: block; font-size: 20px; }
+  .stat span { color: var(--muted); font-size: 13px; }
+  .note { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; }
+  .table-scroll { overflow-x: auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Trafo yağ sıcaklığı izleme</h1>
+  <p class="sub">ETTh1 test dönemi (Kas 2017 – Şub 2018). Gerçek ölçüm, LSTM tahmini ve beklenmeyen ısınma alarmı.</p>
+
+  <section class="card controls" aria-label="Ayarlar">
+    <div>
+      <label for="day">Başlangıç günü: <span id="dayVal"></span></label>
+      <input id="day" type="range" min="0" max="110" value="40">
+    </div>
+    <div>
+      <label for="horizon">Gösterilen tahmin ufku</label>
+      <select id="horizon"><option value="1">1 saat</option><option value="6" selected>6 saat</option><option value="24">24 saat</option></select>
+    </div>
+    <div>
+      <label for="fault">Yapay arıza (°C)</label>
+      <select id="fault"><option value="0">Yok</option><option value="1">+1</option><option value="2">+2</option><option value="3" selected>+3</option><option value="5">+5</option></select>
+    </div>
+    <div>
+      <label for="ramp">Arıza tipi</label>
+      <select id="ramp"><option value="24">Kademeli (24 saatte)</option><option value="3">Ani (3 saatte)</option></select>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="status" id="status" aria-live="polite"></div>
+    <div class="chart-wrap"><canvas id="otChart" aria-label="Yağ sıcaklığı grafiği"></canvas></div>
+  </section>
+
+  <section class="card">
+    <strong>CUSUM birikimi</strong>
+    <p class="note">Gerçek değer tahminin üstünde kaldıkça birikir, eşiği geçince alarm verip sıfırlanır.</p>
+    <div class="chart-wrap small"><canvas id="cusumChart" aria-label="CUSUM grafiği"></canvas></div>
+  </section>
+
+  <section class="card">
+    <strong>Model kartı</strong>
+    <div class="stats" id="stats" style="margin-top:12px"></div>
+    <div class="table-scroll" style="margin-top:16px"><table id="alarmTable"></table></div>
+    <p class="note">Alarm ölçümleri yapay arızalarla yapıldı; gerçek arıza yakalama oranı değildir. ETT'de arıza etiketi yoktur.</p>
+  </section>
+</main>
+<script>
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const $ = id => document.getElementById(id);
+let otChart, cusumChart;
+
+function fmtTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString("tr-TR", { day: "2-digit", month: "short" }) + " " + String(d.getHours()).padStart(2, "0") + ":00";
+}
+
+function baseOptions() {
+  return {
+    responsive: true, maintainAspectRatio: false, animation: false,
+    interaction: { mode: "index", intersect: false },
+    plugins: { legend: { labels: { color: css("--text"), boxWidth: 14 } } },
+    scales: {
+      x: { ticks: { color: css("--muted"), maxTicksLimit: 8 }, grid: { color: css("--line") } },
+      y: { ticks: { color: css("--muted") }, grid: { color: css("--line") } },
+    },
+  };
+}
+
+async function load() {
+  const day = $("day").value;
+  $("dayVal").textContent = day;
+  const q = new URLSearchParams({ day, horizon_h: $("horizon").value, fault_c: $("fault").value, fault_ramp_h: $("ramp").value });
+  const r = await fetch("/demo/series?" + q);
+  const d = await r.json();
+  const labels = d.time.map(fmtTime);
+  const alarmPts = d.actual.map((v, i) => d.alarm[i] ? v : null);
+  const faultOn = d.fault !== null;
+
+  const otData = {
+    labels,
+    datasets: [
+      { label: "%90 alt", data: d.lower, borderWidth: 0, pointRadius: 0, fill: false },
+      { label: "%90 aralık", data: d.upper, borderWidth: 0, pointRadius: 0, fill: "-1", backgroundColor: css("--band") },
+      { label: `Tahmin (${d.horizon_h} sa önceden)`, data: d.median, borderColor: css("--pred"), borderWidth: 1.5, pointRadius: 0 },
+      ...(faultOn ? [{ label: "Arızasız gerçek", data: d.actual_clean, borderColor: css("--clean"), borderDash: [4, 4], borderWidth: 1, pointRadius: 0 }] : []),
+      { label: faultOn ? "Arızalı gerçek" : "Gerçek", data: d.actual, borderColor: css("--actual"), borderWidth: 2, pointRadius: 0 },
+      { label: "Alarm", data: alarmPts, showLine: false, pointRadius: 5, pointStyle: "triangle", backgroundColor: css("--alarm"), borderColor: css("--alarm") },
+    ],
+  };
+  const otOpts = baseOptions();
+  otOpts.plugins.legend.labels.filter = item => item.text !== "%90 alt";
+  otOpts.scales.y.title = { display: true, text: "°C", color: css("--muted") };
+  if (otChart) { otChart.data = otData; otChart.update(); } else { otChart = new Chart($("otChart"), { type: "line", data: otData, options: otOpts }); }
+
+  const cuData = {
+    labels,
+    datasets: [
+      { label: `CUSUM (ufuk ${d.rule_horizon_h} sa)`, data: d.cusum, borderColor: css("--cusum"), borderWidth: 1.5, pointRadius: 0, fill: true, backgroundColor: "transparent" },
+      { label: "Alarm eşiği", data: d.cusum.map(() => d.cusum_threshold), borderColor: css("--actual"), borderDash: [6, 4], borderWidth: 1, pointRadius: 0 },
+    ],
+  };
+  if (cusumChart) { cusumChart.data = cuData; cusumChart.update(); } else { cusumChart = new Chart($("cusumChart"), { type: "line", data: cuData, options: baseOptions() }); }
+
+  const n = d.alarm.filter(Boolean).length;
+  const firstAlarm = d.alarm.indexOf(true);
+  let delay = "";
+  if (faultOn && firstAlarm >= 0) {
+    const h = (new Date(d.time[firstAlarm]) - new Date(d.fault.start)) / 3600e3;
+    delay = h >= 0 ? ` · arızadan ${h} saat sonra` : " · arızadan önce (yanlış alarm)";
+  }
+  $("status").innerHTML =
+    `<span class="pill ${n ? "bad" : "ok"}">${n ? `${n} alarm${delay}` : "Alarm yok"}</span>` +
+    (faultOn ? `<span class="pill">Arıza: +${$("fault").value} °C, ${fmtTime(d.fault.start)} başlangıç, 72 saat</span>` : "");
+}
+
+async function loadCard() {
+  const m = await (await fetch("/model")).json();
+  const t = m.test_metrics;
+  $("stats").innerHTML = [
+    ["Model sürümü", m.version],
+    ["MAE 1 sa (test)", t.test_mae_h1.toFixed(2) + " °C"],
+    ["MAE 6 sa (test)", t.test_mae_h6.toFixed(2) + " °C"],
+    ["MAE 24 sa (test)", t.test_mae_h24.toFixed(2) + " °C"],
+    ["Alarm kuralı", `CUSUM, k=${m.alarm_rule.k}, H=${m.alarm_rule.H}`],
+    ["Yanlış alarm (test)", m.alarm_rule.test.false_per_week.toFixed(2) + " / hafta"],
+  ].map(([k, v]) => `<div class="stat"><span>${k}</span><b>${v}</b></div>`).join("");
+  const rows = Object.entries(m.alarm_rule.test).filter(([k]) => k !== "false_per_week");
+  $("alarmTable").innerHTML = "<tr><th>Yapay arıza</th><th>Yakalama</th><th>Ortanca gecikme</th></tr>" +
+    rows.map(([k, r]) => `<tr><td>${k.replace("_", " ")} °C</td><td>%${Math.round(r.detection_rate * 100)}</td><td>${r.median_delay_h ?? "-"} sa</td></tr>`).join("");
+}
+
+["day", "horizon", "fault", "ramp"].forEach(id => $(id).addEventListener("input", load));
+load();
+loadCard();
+</script>
+</body>
+</html>

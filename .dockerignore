@@ -1,0 +1,8 @@
+.venv
+mlflow.db
+mlruns
+mlartifacts
+**/__pycache__
+reports/*.png
+reports/*.log
+notebooks

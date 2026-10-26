@@ -1,0 +1,180 @@
+{
+  "model_version": "20261026-164645",
+  "chosen": {
+    "esik": {
+      "horizon_h": 24,
+      "rule": {
+        "kind": "esik",
+        "n": 1
+      },
+      "val": {
+        "false_per_week": 0.7583333333333333,
+        "kademeli_1": {
+          "detection_rate": 0.25,
+          "median_delay_h": 38.0
+        },
+        "kademeli_2": {
+          "detection_rate": 0.3,
+          "median_delay_h": 22.5
+        },
+        "kademeli_3": {
+          "detection_rate": 0.475,
+          "median_delay_h": 26.0
+        },
+        "kademeli_5": {
+          "detection_rate": 0.625,
+          "median_delay_h": 20.0
+        },
+        "ani_1": {
+          "detection_rate": 0.325,
+          "median_delay_h": 15.0
+        },
+        "ani_2": {
+          "detection_rate": 0.375,
+          "median_delay_h": 16.0
+        },
+        "ani_3": {
+          "detection_rate": 0.525,
+          "median_delay_h": 12.0
+        },
+        "ani_5": {
+          "detection_rate": 0.775,
+          "median_delay_h": 5.0
+        }
+      },
+      "test": {
+        "false_per_week": 0.2916666666666667,
+        "kademeli_1": {
+          "detection_rate": 0.05,
+          "median_delay_h": 53.0
+        },
+        "kademeli_2": {
+          "detection_rate": 0.125,
+          "median_delay_h": 24.0
+        },
+        "kademeli_3": {
+          "detection_rate": 0.2,
+          "median_delay_h": 21.5
+        },
+        "kademeli_5": {
+          "detection_rate": 0.725,
+          "median_delay_h": 20.0
+        },
+        "ani_1": {
+          "detection_rate": 0.1,
+          "median_delay_h": 50.5
+        },
+        "ani_2": {
+          "detection_rate": 0.075,
+          "median_delay_h": 13.0
+        },
+        "ani_3": {
+          "detection_rate": 0.2,
+          "median_delay_h": 11.5
+        },
+        "ani_5": {
+          "detection_rate": 0.85,
+          "median_delay_h": 5.0
+        }
+      }
+    },
+    "cusum": {
+      "horizon_h": 6,
+      "rule": {
+        "kind": "cusum",
+        "k": 0.5,
+        "H": 8
+      },
+      "val": {
+        "false_per_week": 0.875,
+        "kademeli_1": {
+          "detection_rate": 0.425,
+          "median_delay_h": 32.0
+        },
+        "kademeli_2": {
+          "detection_rate": 0.4,
+          "median_delay_h": 24.5
+        },
+        "kademeli_3": {
+          "detection_rate": 0.775,
+          "median_delay_h": 25.0
+        },
+        "kademeli_5": {
+          "detection_rate": 0.875,
+          "median_delay_h": 16.0
+        },
+        "ani_1": {
+          "detection_rate": 0.35,
+          "median_delay_h": 13.0
+        },
+        "ani_2": {
+          "detection_rate": 0.45,
+          "median_delay_h": 12.0
+        },
+        "ani_3": {
+          "detection_rate": 0.725,
+          "median_delay_h": 5.0
+        },
+        "ani_5": {
+          "detection_rate": 0.975,
+          "median_delay_h": 4.0
+        }
+      },
+      "test": {
+        "false_per_week": 0.9916666666666667,
+        "kademeli_1": {
+          "detection_rate": 0.475,
+          "median_delay_h": 31.0
+        },
+        "kademeli_2": {
+          "detection_rate": 0.55,
+          "median_delay_h": 22.5
+        },
+        "kademeli_3": {
+          "detection_rate": 0.75,
+          "median_delay_h": 18.0
+        },
+        "kademeli_5": {
+          "detection_rate": 0.975,
+          "median_delay_h": 13.0
+        },
+        "ani_1": {
+          "detection_rate": 0.45,
+          "median_delay_h": 24.0
+        },
+        "ani_2": {
+          "detection_rate": 0.575,
+          "median_delay_h": 7.0
+        },
+        "ani_3": {
+          "detection_rate": 0.725,
+          "median_delay_h": 5.0
+        },
+        "ani_5": {
+          "detection_rate": 1.0,
+          "median_delay_h": 3.5
+        }
+      }
+    }
+  },
+  "production_rule": "cusum",
+  "selection": {
+    "max_false_per_week": 1.0,
+    "target": "kademeli_3",
+    "note": "seçim val'de, rapor test'te"
+  },
+  "setup": {
+    "fault_hours": 72,
+    "magnitudes": [
+      1.0,
+      2.0,
+      3.0,
+      5.0
+    ],
+    "fault_types_ramp_hours": {
+      "kademeli": 24,
+      "ani": 3
+    },
+    "injections_per_case": 40
+  }
+}

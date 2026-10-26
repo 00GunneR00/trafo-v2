@@ -1,0 +1,9 @@
+# Eğitim ortamı. PyTorch'u ekran kartı sürücüne uygun CUDA sürümüyle ayrıca kur:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu118
+numpy
+pandas
+scikit-learn
+matplotlib
+mlflow
+fastapi
+uvicorn[standard]
